@@ -24,11 +24,13 @@ export function anthropicProvider(): Provider {
         model: model ?? defaultModel,
       });
 
+      let finalText = ""
       for await (const event of stream) {
         if (
           event.type === "content_block_delta" &&
           event.delta.type === "text_delta"
         ) {
+          finalText+=event.delta.text
           yield {
             type: "text",
             text: event.delta.text,
@@ -40,6 +42,7 @@ export function anthropicProvider(): Provider {
 
       yield {
         type: "done",
+        response : finalText,
         usage: {
           input_token: final.usage.input_tokens,
           outPut_token: final.usage.output_tokens,

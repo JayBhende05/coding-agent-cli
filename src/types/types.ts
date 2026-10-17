@@ -13,7 +13,7 @@ export type StreamOptions = {
 export type ProviderEvent =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "done" ; usage : { 
+  | { type: "done" ; response : string ; usage : { 
     input_token : number,
             outPut_token :number
   } };

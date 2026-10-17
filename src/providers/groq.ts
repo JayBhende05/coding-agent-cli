@@ -11,13 +11,14 @@ export function groqProvider(): Provider {
     name: "groq",
     defaultModel: "openai/gpt-oss-20b",
 
-    async *stream({ messages, model }):AsyncGenerator<ProviderEvent> {
+    async *stream({ messages, model }): AsyncGenerator<ProviderEvent> {
       const stream = await groq.chat.completions.create({
         messages,
         model: model ?? "openai/gpt-oss-20b",
         stream: true,
       });
 
+      let finalText = ""
       for await (const chunk of stream) {
         const choice = chunk.choices[0];
         const delta = choice?.delta;
@@ -31,6 +32,7 @@ export function groqProvider(): Provider {
         }
 
         if (delta?.content) {
+          finalText += delta.content
           yield {
             type: "text",
             text: delta.content,
@@ -38,10 +40,12 @@ export function groqProvider(): Provider {
         }
 
         if (choice?.finish_reason) {
-          yield { type: "done", usage : {
-            input_token : usage?.prompt_tokens || 0,
-            outPut_token : usage?.completion_tokens || 0
-          } };
+          yield {
+            type: "done", response: finalText, usage: {
+              input_token: usage?.prompt_tokens || 0,
+              outPut_token: usage?.completion_tokens || 0
+            }
+          };
         }
       }
     },

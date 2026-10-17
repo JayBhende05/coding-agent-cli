@@ -7,11 +7,11 @@ import { openaiCompatProvider } from "./openai-comaptible.ts";
 const providers: Record<string, () => Provider> = {
   anthropic: anthropicProvider,
   groq: groqProvider,
-  openai: ()=> openaiCompatProvider(
+  "gemini-openai": ()=> openaiCompatProvider(
     "gemini",
     "https://generativelanguage.googleapis.com/v1beta/openai/",
     process.env.GEMINI_API_KEY!,
-    "gemini-2.5-flash",
+    "gemini-3.8-flash",
   ),
 };
 

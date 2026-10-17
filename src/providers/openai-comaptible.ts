@@ -1,6 +1,6 @@
 
 import OpenAI from "openai";
-import { Provider } from "../types/types.ts";
+import { Provider, ProviderEvent } from "../types/types.ts";
 
 export function openaiCompatProvider(
   name: string,
@@ -14,7 +14,7 @@ export function openaiCompatProvider(
     name,
     defaultModel,
 
-    async *stream({ messages, model, system }) {
+    async *stream({ messages, system }):AsyncGenerator<ProviderEvent> {
       const chat: OpenAI.ChatCompletionMessageParam[] =
         messages.map((m) => ({
           role: m.role,
@@ -22,7 +22,7 @@ export function openaiCompatProvider(
         }));
 
       const stream = await client.chat.completions.create({
-        model: model ?? defaultModel,
+        model:  defaultModel,
         stream: true,
         stream_options: { include_usage: true },
         messages: system
@@ -32,12 +32,14 @@ export function openaiCompatProvider(
 
       let inputTokens = 0;
       let outputTokens = 0;
+      let finalText = ""
 
       for await (const chunk of stream) {
         const choice = chunk.choices[0];
         const delta = choice?.delta;
 
         if (delta?.content) {
+          finalText += delta.content
           yield {
             type: "text",
             text: delta.content,
@@ -64,6 +66,7 @@ export function openaiCompatProvider(
 
       yield {
         type: "done",
+        response : finalText,
         usage: {
           input_token: inputTokens,
           outPut_token: outputTokens,

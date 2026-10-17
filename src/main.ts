@@ -2,6 +2,8 @@ import { config } from "dotenv";
 import Groq from "groq-sdk";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { getProvider } from "./providers/main.ts";
+import { ChatMessage } from "./types/types.ts";
 
 // Load .env from the parent folder of this script
 config({
@@ -16,6 +18,7 @@ const { values } = parseArgs({
       type: "string",
       default: "openai/gpt-oss-20b",
     },
+    provider : {type : "string" , default : "groq"},
   },
 });
 
@@ -24,6 +27,34 @@ if (!values.prompt) {
   process.exit(1);
 }
 
+if(!values.provider){
+  console.log("Please pass Provider")
+  process.exit(1)
+}
+
+const provider = getProvider(values.provider);
+const messages: ChatMessage[] = [{ role: "user", content: values.prompt }];
+const model = values.model ?? provider.defaultModel;
+
+console.log("Provider return" , provider)
+
+for await(const event of provider.stream({messages ,model} )){
+  if(event.type === 'done'){
+      console.log("CHUNK" , event)
+
+  }
+      
+}
+
+
+
+
+
+
+
+
+async function tryGroq( values : { prompt : string , model : string }){
+  
 if (!process.env.GROQ_API_KEY) {
   console.error("GROQ_API_KEY is missing from your .env file");
   process.exit(1);
@@ -64,4 +95,7 @@ const stream = await groq.chat.completions.create({
 
   console.log("The text is " , text);
 
+}
+
+// tryGroq({prompt : values.prompt , model : values.model})
 
