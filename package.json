@@ -1,5 +1,5 @@
 {
-  "name": "100x",
+  "name": "harness",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -12,9 +12,10 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "dotenv": "^18.0.5",
     "groq-sdk": "^1.6.0",
-    "openai": "^7.25.0"
+    "openai": "^7.36.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
