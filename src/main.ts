@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { getProvider } from "./providers/main.ts";
 import { ChatMessage } from "./types/types.ts";
+// import { toolsSchema } from "./tools/toolsSchema.ts";
 
 // Load .env from the parent folder of this script
 config({

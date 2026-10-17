@@ -19,7 +19,7 @@ export function anthropicProvider(): Provider {
         system,
         messages: messages.map((msg) => ({
           role: msg.role as "user" | "assistant",
-          content: msg.content,
+          content: msg.content ?? "",
         })),
         model: model ?? defaultModel,
       });

@@ -15,11 +15,7 @@ export function openaiCompatProvider(
     defaultModel,
 
     async *stream({ messages, system }):AsyncGenerator<ProviderEvent> {
-      const chat: OpenAI.ChatCompletionMessageParam[] =
-        messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+      const chat: OpenAI.ChatCompletionMessageParam[] = messages;
 
       const stream = await client.chat.completions.create({
         model:  defaultModel,

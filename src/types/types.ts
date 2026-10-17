@@ -1,8 +1,18 @@
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+export type toolcall = {
+        "id": string,
+        "type": "function",
+        "function": {
+          "name": string,
+          "arguments": string
+        }
+      }
+
+export type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls?: toolcall[] }
+  | { role: "tool"; content: string; tool_call_id: string };
+
 
 export type StreamOptions = {
   messages: ChatMessage[];
