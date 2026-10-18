@@ -1,8 +1,11 @@
 import { config } from "dotenv";
 import Groq from "groq-sdk";
 import { fileURLToPath } from "node:url";
-
-// import { toolsSchema } from "./tools/toolsSchema.ts";
+import { parseArgs } from "node:util";
+import { getProvider } from "./providers/mainProvider.ts";
+import { AssistantMessage, Message } from "./types.ts";
+import {tools} from './tools/mainTools.ts'
+import { runAgent } from "./agent/loop.ts";
 
 // Load .env from the parent folder of this script
 config({
@@ -11,3 +14,62 @@ config({
 });
 
 
+const { values } = parseArgs({
+  options: {
+    prompt: { type: "string", short: 'p' },
+    provider: { type: "string", short: 'x' },
+    model: { type: "string", short: 'm' }
+  }
+})
+
+if (!values.prompt || !values.provider) {
+  process.exit(1)
+}
+
+console.log(values)
+
+const provider = getProvider(values.provider)
+const messages: Message[] = [{ role: "user", content: values.prompt }]
+const model = ""
+if(!tools){
+  process.exit(1)
+}
+
+async function callModel1(): Promise<AssistantMessage> {
+  for await (const event of provider.stream({ messages,model, tools })) {
+    if (event.type === "text_delta") process.stdout.write(event.delta);
+    else {
+      const { usage, stopReason } = event.message;
+      console.log(
+        `\n\n  ${provider.name} ... ${model} ... ${usage.input_token} ... ${usage.output_token} ... ${stopReason}`,
+      );
+
+      return event.message;
+    }
+  }
+  throw new Error("stream ended without a done event");
+}
+
+// callModel1()
+
+
+
+await runAgent({
+  provider,
+  model,
+  tools,
+  messages,
+  onEvent(event) {
+    if (event.type === "text") process.stdout.write(event.delta);
+    else if (event.type == "tool_start") console.log(`\n ${event.call.name}`);
+    else if (event.type == "tool_end") {
+      const lines = event.result.split("\n").length;
+      console.log(`\n ${event.isError ? event.result : lines}`);
+    } else if (event.type === "turn_end") {
+      const { usage, stopReason } = event.message;
+      console.log(
+        `\n\n  ${provider.name} ... ${model} ... ${usage.input_token} ... ${usage.output_token} ... ${stopReason}`,
+      );
+    }
+  },
+});
