@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import { ContentBlock, Message, Provider, StopReason, StreamEvent, StreamOptions, Usage } from "../types.ts"
 
 
-function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
+export function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
   return messages.map((m): OpenAI.ChatCompletionMessageParam => {
     if (m.role === "user") return { role: "user", content: m.content };
     if (m.role === "assistant") {
@@ -34,10 +34,11 @@ export function createOpenAICompat(name: string, baseURL: string, apiKey: string
       if(!tools){
         process.exit(1)
       }
+   
       
       const chat = toOpenAI(messages);
       const stream = await client.chat.completions.create({
-        model:defaultModel,
+        model: model ? model : defaultModel,
         stream: true,
         stream_options: { include_usage: true }, // usage comes in the last chunk
         messages: system ? [{ role: "system", content: system }, ...chat] : chat,

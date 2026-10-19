@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Provider, StreamEvent, StopReason, Message, ContentBlock, StreamOptions } from "../types.ts";
 
 
-function toAnthropic(messages: Message[]): Anthropic.MessageParam[] {
+export function toAnthropic(messages: Message[]): Anthropic.MessageParam[] {
   return messages.map((m): Anthropic.MessageParam => {
     if (m.role === "user") return { role: "user", content: m.content };
     if (m.role === "assistant") {
@@ -34,7 +34,7 @@ export function createAnthropic(): Provider {
       }
       
       const stream = client.messages.stream({
-        model,
+        model : model ? model : this.defaultModel,
         max_tokens: 4096,
         system,
         messages: toAnthropic(messages),
