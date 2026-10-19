@@ -1,5 +1,6 @@
 import OpenAI from "openai"
 import { ContentBlock, Message, Provider, StopReason, StreamEvent, StreamOptions, Usage } from "../types.ts"
+import { observeOpenAI } from "@langfuse/openai";
 
 
 export function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
@@ -26,7 +27,7 @@ export function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam
 }
 
 export function createOpenAICompat(name: string, baseURL: string, apiKey: string | undefined, defaultModel: string): Provider {
-  const client = new OpenAI({ baseURL, apiKey });
+  const client =  observeOpenAI(new OpenAI({ baseURL, apiKey }));
   return {
     name,
     defaultModel,
@@ -35,7 +36,6 @@ export function createOpenAICompat(name: string, baseURL: string, apiKey: string
         process.exit(1)
       }
    
-      
       const chat = toOpenAI(messages);
       const stream = await client.chat.completions.create({
         model: model ? model : defaultModel,

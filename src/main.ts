@@ -1,17 +1,9 @@
-import { config } from "dotenv";
-import Groq from "groq-sdk";
-import { fileURLToPath } from "node:url";
+import { shutdownTracing } from "./Langfuse.ts"; // must stay first: loads .env and starts tracing
 import { parseArgs } from "node:util";
 import { getProvider } from "./providers/mainProvider.ts";
 import { AssistantMessage, Message } from "./types.ts";
 import {tools} from './tools/mainTools.ts'
 import { runAgent } from "./agent/loop.ts";
-
-// Load .env from the parent folder of this script
-config({
-  path: fileURLToPath(new URL("../.env", import.meta.url)),
-  quiet: true,
-});
 
 
 const { values } = parseArgs({
@@ -76,3 +68,5 @@ await runAgent({
     }
   },
 });
+
+await shutdownTracing();
