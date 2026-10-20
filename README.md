@@ -1,4 +1,4 @@
-# Harness
+# coding-agent-cli
 
 A command-line coding agent written from scratch in TypeScript, with no agent framework. You give it a prompt and a provider. It streams the model's answer, lets the model explore and change your project through a small set of tools, and asks you before it writes anything.
 
@@ -13,9 +13,10 @@ I built it to learn how agents like Claude Code work underneath: the tool-callin
 - **Agent loop** (`src/agent/loop.ts`): stream a model turn, run any tool calls, send the results back, repeat until the model stops. Stops after 20 turns by default. A failing tool becomes an error result the model can see, so it can retry or change course.
 - **Four providers behind one interface:** native Anthropic, plus Groq, Gemini and Anthropic's OpenAI-compatible endpoint through one OpenAI-style adapter. Each provider converts the shared message format to its own API shape.
 - **Seven tools:** `read`, `ls`, `find`, `grep`, `write`, `edit`, `bash`.
+- **System prompt with project context:** a default prompt tells the model to look with tools before answering. If the project folder has an `AGENTS.md`, it is added automatically. `--system` swaps the default text.
 - **Confirmation before changes:** `write` and `edit` show a preview and wait for `y`. Without an interactive terminal they refuse.
 - **Tracing:** every model call is traced to Langfuse through OpenTelemetry when keys are set. Without keys nothing is sent.
-- **Tests:** 44 Vitest tests, all passing.
+- **Tests:** 48 Vitest tests, all passing.
 
 ## Tools
 
@@ -41,6 +42,8 @@ I built it to learn how agents like Claude Code work underneath: the tool-callin
 Requires Node.js 18.3 or newer. On Windows, `bash` needs Git for Windows (Git Bash).
 
 ```bash
+git clone https://github.com/<your-username>/coding-agent-cli.git
+cd coding-agent-cli
 npm install
 cp .env.example .env     # fill in the keys for the providers you use
 ```
@@ -63,6 +66,7 @@ npm run dev -- -p "What is in the .gitignore file?" -x groq
 # or install the `mypi` command from this folder
 npm link
 mypi -p "Add a TODO comment to src/main.ts" -x anthropic
+mypi -p "Review src/tools/bash.ts" -x anthropic -s "You are a strict code reviewer. Be brief."
 ```
 
 | Flag | Short | Description |
@@ -70,6 +74,7 @@ mypi -p "Add a TODO comment to src/main.ts" -x anthropic
 | `--prompt` | `-p` | Prompt to send (required) |
 | `--provider` | `-x` | `anthropic`, `anthropic-openai`, `groq` or `gemini` (required) |
 | `--model` | `-m` | Model override; each provider has a default |
+| `--system` | `-s` | Replace the default system prompt (`AGENTS.md` is still added) |
 
 After each model turn it prints the provider, input tokens, output tokens and stop reason.
 
@@ -83,22 +88,21 @@ npm test
 
 ```
 bin/mypi.js                      registers tsx so Node runs the .ts files directly
-src/main.ts                      parse args, build provider, print events
+src/main.ts                      parse args, build provider and system prompt, print events
 src/Langfuse.ts                  load .env, start tracing (must be imported first)
+src/systemPrompt.ts              default system prompt + AGENTS.md loading
 src/types.ts                     Message, Tool, Provider, StreamEvent
 src/agent/loop.ts                runAgent(): the loop
 src/providers/mainProvider.ts    name -> provider registry
 src/providers/anthropic.ts       native Anthropic provider
 src/providers/openai.ts          OpenAI-compatible provider (Groq, Gemini, Anthropic compat)
 src/tools/*.ts                   one file per tool, plus safePath, confirm, truncate, walk
-tests/                           Vitest suites for paths, truncation, tools, write/edit
+tests/                           Vitest suites for paths, truncation, tools, write/edit, system prompt
 ```
 
 One difference the provider layer hides: Anthropic wants a tool result inside a *user* message, while OpenAI-style APIs use a separate `tool` role. The loop and the tools only see the shared format.
 
-More detail:
-- [FLOW.md](./FLOW.md): line-by-line trace of one run.
-- [CP7_NOTES.md](./CP7_NOTES.md): how `write` / `edit` confirmation works.
+For a line-by-line trace of one run, see [FLOW.md](./FLOW.md).
 
 ### Add a provider
 
@@ -115,7 +119,7 @@ Create an object with `name`, `description`, JSON-schema `parameters` and an asy
 ## Limitations
 
 - One prompt per run: no interactive chat and no saved sessions.
-- No retries, rate-limit handling or cost tracking.
+- No retries, rate-limit handling or cost tracking. A provider error ends the run.
 - No context-window management; long runs keep the full history.
 - `bash` has no confirmation or sandbox.
 - `safePath` checks the path text only and does not resolve symlinks.
@@ -124,7 +128,7 @@ Create an object with `name`, `description`, JSON-schema `parameters` and an asy
 
 - Interactive mode with session history
 - Confirmation or an allowlist for `bash`
-- Retries with backoff and cost reporting
+- Retries with backoff and friendlier errors for bad API keys
 - Trimming or summarizing old turns
 
 ## Stack
