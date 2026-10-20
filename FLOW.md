@@ -370,16 +370,3 @@ Differences inside `stream`:
 | `Provider` | `{ name, defaultModel, stream(opts) }` – the contract each provider implements |
 
 ---
-
-## Known issues
-
-Things noticed while tracing the code (not changed):
-
-1. **`model` is always `""`** (`main.ts:33`). The `-m` flag is parsed but never used.
-   - `openai.ts:40` ignores the `model` argument and always sends `defaultModel`, so Groq works anyway.
-   - `anthropic.ts:37` uses `model` directly, so `-x anthropic` would send an empty model name and fail. A fix would be `model = values.model ?? provider.defaultModel`.
-2. **`console.log(values)`** (`main.ts:29`) prints the parsed args on every run (debug output).
-3. **Error message bug** (`loop.ts:57`): `unknown tool name ${tool}` prints `undefined`; it should print `call.name`.
-4. **Stale imports** in `main.ts`: `Groq` (`groq-sdk`) is imported but unused.
-5. `process.exit(1)` when `-p`/`-x` is missing gives no message – a usage hint would help.
-6. Model IDs in `mainProvider.ts` (`qwen/qwen3.8-27b`, `claude-sonnet-5`) should be verified against what each service actually offers.

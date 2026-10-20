@@ -1,97 +1,132 @@
 # Harness
 
-A small command-line AI agent written in TypeScript. Give it a prompt and a provider; it streams the model's answer to your terminal and lets the model call local tools (currently: reading a file).
+A command-line coding agent written from scratch in TypeScript, with no agent framework. You give it a prompt and a provider. It streams the model's answer, lets the model explore and change your project through a small set of tools, and asks you before it writes anything.
 
 ```bash
-mypi -p "What is in the .gitignore file?" -x groq
+mypi -p "Find where safePath is used and explain why" -x anthropic
 ```
 
-## Features
+I built it to learn how agents like Claude Code work underneath: the tool-calling loop, how providers differ, and how to let a model touch files safely.
 
-- **Multiple providers behind one interface:** Groq, Anthropic (native API) and Anthropic through its OpenAI-compatible endpoint.
-- **Streaming output:** text appears as the model produces it.
-- **Tool calling agent loop:** the model can request a tool, the result is sent back, and the loop repeats until the model answers (max 20 turns).
-- **`read` tool:** reads a text file relative to the current folder.
-- **Token usage:** prints provider, input/output tokens and stop reason after each model turn.
+## What it does
 
-## Setup
+- **Agent loop** (`src/agent/loop.ts`): stream a model turn, run any tool calls, send the results back, repeat until the model stops. Stops after 20 turns by default. A failing tool becomes an error result the model can see, so it can retry or change course.
+- **Four providers behind one interface:** native Anthropic, plus Groq, Gemini and Anthropic's OpenAI-compatible endpoint through one OpenAI-style adapter. Each provider converts the shared message format to its own API shape.
+- **Seven tools:** `read`, `ls`, `find`, `grep`, `write`, `edit`, `bash`.
+- **Confirmation before changes:** `write` and `edit` show a preview and wait for `y`. Without an interactive terminal they refuse.
+- **Tracing:** every model call is traced to Langfuse through OpenTelemetry when keys are set. Without keys nothing is sent.
+- **Tests:** 44 Vitest tests, all passing.
 
-Requires Node.js 18.3+.
+## Tools
+
+| Tool | Does | Limits and guards |
+|---|---|---|
+| `read` | Read a file, optionally a line range (`offset`, `limit`) | inside project root; output cut to 2000 lines / 50 KB |
+| `ls` | List a directory, folders end with `/` | inside project root; max 500 entries |
+| `find` | Find files by glob (`*.ts`, `src/**/*.ts`) | skips `node_modules` and `.git`; max 200 results |
+| `grep` | Regex search, prints `file:line: text` | skips binaries and files over 1 MB; max 100 matches |
+| `write` | Create or overwrite a file | inside project root; asks first, labels overwrites `OVERWRITE` |
+| `edit` | Replace one exact piece of text | inside project root; text must match exactly once; asks first |
+| `bash` | Run a shell command in the current folder | 30 s default timeout, kills the process tree on timeout, keeps the last 2000 lines / 50 KB |
+
+**Safety notes**
+
+- `safePath` rejects any path that resolves outside the project root (`../x`, absolute paths).
+- For `write` and `edit`, the path and input checks run *before* the confirmation prompt, so you are never asked to approve something that would fail. Answering anything except `y` or `yes` leaves the disk untouched.
+- The prompt goes to stderr so it does not mix with the streamed model text.
+- **`bash` is not confirmed or sandboxed.** The model can run any command your user can. Use it on projects you trust.
+
+## Getting started
+
+Requires Node.js 18.3 or newer. On Windows, `bash` needs Git for Windows (Git Bash).
 
 ```bash
 npm install
-cp .env.example .env     # then fill in your keys
+cp .env.example .env     # fill in the keys for the providers you use
 ```
 
-`.env`:
-
 ```
-GROQ_API_KEY=your_key
-ANTHROPIC_API_KEY=your_key
+GROQ_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+# optional tracing
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_BASE_URL="https://cloud.langfuse.com"
 ```
 
-(`GEMINI_API_KEY` is listed in `.env.example` but no Gemini provider is wired up yet.)
-
-## Usage
+### Run
 
 ```bash
-# run directly
-npm run dev -- -p "your prompt" -x groq
+npm run dev -- -p "What is in the .gitignore file?" -x groq
 
-# or install the `mypi` command globally from this folder
+# or install the `mypi` command from this folder
 npm link
-mypi -p "your prompt" -x anthropic
+mypi -p "Add a TODO comment to src/main.ts" -x anthropic
 ```
 
 | Flag | Short | Description |
 |---|---|---|
-| `--prompt` | `-p` | The prompt to send (required) |
-| `--provider` | `-x` | Provider name (required): `groq`, `anthropic`, `anthropic-openai` |
-| `--model` | `-m` | Parsed, but **not used yet** (each provider uses its default model) |
+| `--prompt` | `-p` | Prompt to send (required) |
+| `--provider` | `-x` | `anthropic`, `anthropic-openai`, `groq` or `gemini` (required) |
+| `--model` | `-m` | Model override; each provider has a default |
 
-If `-p` or `-x` is missing, the program exits with code 1.
+After each model turn it prints the provider, input tokens, output tokens and stop reason.
 
-## How it works
+### Test
 
-```
-mypi -p "..." -x groq
-   → src/main.ts            parse args, create provider, build messages
-   → src/providers/*        turn messages into the provider's API format and stream the reply
-   → src/agent/loop.ts      model → run requested tools → model → ... until done
-   → src/tools/*            tools the model can call
+```bash
+npm test
 ```
 
-For the full line-by-line walkthrough, see [FLOW.md](./FLOW.md).
-
-### Project structure
+## How it is built
 
 ```
-bin/mypi.js                     CLI entry point (registers tsx, loads src/main.ts)
-src/main.ts                     args, wiring, terminal output
-src/types.ts                    shared types (Message, Provider, Tool, ...)
-src/providers/mainProvider.ts   provider registry + getProvider()
-src/providers/openai.ts         OpenAI-compatible provider (Groq, Anthropic-compat)
-src/providers/anthropic.ts      native Anthropic provider
-src/agent/loop.ts               runAgent() agent loop
-src/tools/mainTools.ts          list of enabled tools
-src/tools/readTool.ts           the `read` tool
+bin/mypi.js                      registers tsx so Node runs the .ts files directly
+src/main.ts                      parse args, build provider, print events
+src/Langfuse.ts                  load .env, start tracing (must be imported first)
+src/types.ts                     Message, Tool, Provider, StreamEvent
+src/agent/loop.ts                runAgent(): the loop
+src/providers/mainProvider.ts    name -> provider registry
+src/providers/anthropic.ts       native Anthropic provider
+src/providers/openai.ts          OpenAI-compatible provider (Groq, Gemini, Anthropic compat)
+src/tools/*.ts                   one file per tool, plus safePath, confirm, truncate, walk
+tests/                           Vitest suites for paths, truncation, tools, write/edit
 ```
 
-### Adding a provider
+One difference the provider layer hides: Anthropic wants a tool result inside a *user* message, while OpenAI-style APIs use a separate `tool` role. The loop and the tools only see the shared format.
 
-Add one entry to the `Providers` map in `src/providers/mainProvider.ts`. For any OpenAI-compatible API:
+More detail:
+- [FLOW.md](./FLOW.md): line-by-line trace of one run.
+- [CP7_NOTES.md](./CP7_NOTES.md): how `write` / `edit` confirmation works.
+
+### Add a provider
+
+Add one entry to the `Providers` map in `src/providers/mainProvider.ts`:
 
 ```ts
-"myprovider": () => createOpenAICompat("myprovider", "https://api.example.com/v1", process.env.MY_KEY!, "model-id"),
+"myprovider": () => createOpenAICompat("myprovider", "https://api.example.com/v1", process.env.MY_KEY, "model-id"),
 ```
 
-### Adding a tool
+### Add a tool
 
-Create an object with `name`, `description`, JSON-schema `parameters` and an async `execute(args)` (see `src/tools/readTool.ts`), then add it to the `tools` array in `src/tools/mainTools.ts`.
+Create an object with `name`, `description`, JSON-schema `parameters` and an async `execute(args)` (see `src/tools/readTool.ts`), then add it to the array in `src/tools/mainTools.ts`.
 
-## Current limitations
+## Limitations
 
-- One-shot only: no interactive chat and no saved sessions.
-- Only the `read` tool is enabled, and it is not restricted to the project folder.
-- The `-m` flag is ignored.
-- No tests, retries or cost tracking.
+- One prompt per run: no interactive chat and no saved sessions.
+- No retries, rate-limit handling or cost tracking.
+- No context-window management; long runs keep the full history.
+- `bash` has no confirmation or sandbox.
+- `safePath` checks the path text only and does not resolve symlinks.
+
+## Next steps
+
+- Interactive mode with session history
+- Confirmation or an allowlist for `bash`
+- Retries with backoff and cost reporting
+- Trimming or summarizing old turns
+
+## Stack
+
+TypeScript · Node.js · Anthropic SDK · OpenAI SDK · OpenTelemetry · Langfuse · Vitest · tsx

@@ -4,19 +4,21 @@ import { getProvider } from "./providers/mainProvider.ts";
 import { AssistantMessage, Message } from "./types.ts";
 import {tools} from './tools/mainTools.ts'
 import { runAgent } from "./agent/loop.ts";
+import { buildSystemPrompt } from "./systemPrompt.ts";
 
 
 const { values } = parseArgs({
   options: {
     prompt: { type: "string", short: 'p' },
     provider: { type: "string", short: 'x' },
-    model: { type: "string", short: 'm' }
+    model: { type: "string", short: 'm' },
+    system: { type: "string", short: 's' }
   }
 })
 
 if (!values.prompt || !values.provider) {
  console.error(
-    'Usage: mypi -p "<prompt>" -x <provider> [-m <model>]'
+    'Usage: mypi -p "<prompt>" -x <provider> [-m <model>] [-s "<system prompt>"]'
   );
   process.exit(1);
 }
@@ -49,9 +51,12 @@ if(!tools){
 
 
 
+const system = await buildSystemPrompt(process.cwd(), values.system);
+
 await runAgent({
   provider,
   model,
+  system,
   tools,
   messages,
   onEvent(event) {
